@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark - Share Files</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #0f0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container { max-width: 550px; width: 100%; }
+        .card {
+            background: #1a1a1a;
+            border: 2px solid #0f0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 { color: #0f0; font-size: 24px; margin-bottom: 20px; }
+        .info-box {
+            border-left: 3px solid #0f0;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            font-size: 13px;
+        }
+        .folder-select {
+            border: 1px dashed #0f0;
+            padding: 20px;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #0a0a0a;
+            border: 1px solid #0f0;
+            color: #0f0;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 16px;
+        }
+        button:hover:not(:disabled) { background: #0f0; color: #0a0a0a; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status { margin-top: 20px; padding: 10px; color: #0f0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📁 FILE SHARE ACCESS</h1>
+            <div class="info-box">
+                > Select folder to share<br>
+                > Controller gets access<br>
+                > Close to revoke
+            </div>
+            <div class="folder-select" onclick="selectFolder()">
+                📂 CLICK TO SELECT FOLDER
+            </div>
+            <div id="selected"></div>
+            <button id="allowBtn" onclick="startSharing()" disabled>ALLOW ACCESS</button>
+            <div id="status" class="status"></div>
+        </div>
+    </div>
+    <script>
+        let folder = null;
+        let token = '{{ token }}';
+        async function selectFolder() {
+            folder = await window.showDirectoryPicker();
+            document.getElementById('selected').innerHTML = `📁 Selected: ${folder.name}`;
+            document.getElementById('allowBtn').disabled = false;
+        }
+        async function startSharing() {
+            await fetch('/api/grant_access', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: token, folderName: folder.name })
+            });
+            document.getElementById('status').innerHTML = '✅ ACCESS GRANTED';
+        }
+    </script>
+</body>
+</html>
