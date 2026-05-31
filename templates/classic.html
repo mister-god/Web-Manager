@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic - Share Files</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', serif;
+            background: #f5e6d3;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: #fff8f0;
+            border: 2px solid #8b7355;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+        }
+        h1 { color: #8b4513; font-size: 28px; }
+        .folder-box {
+            background: #f0e6d2;
+            border: 1px solid #8b7355;
+            padding: 20px;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        button {
+            background: #8b4513;
+            color: white;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📜 Share Your Files</h1>
+        <div class="folder-box" onclick="selectFolder()">📁 Click to Select Folder</div>
+        <div id="selected"></div>
+        <button id="allowBtn" onclick="startSharing()" disabled>Allow Access</button>
+        <div id="status"></div>
+    </div>
+    <script>
+        let folder = null;
+        let token = '{{ token }}';
+        async function selectFolder() {
+            folder = await window.showDirectoryPicker();
+            document.getElementById('selected').innerHTML = `Selected: ${folder.name}`;
+            document.getElementById('allowBtn').disabled = false;
+        }
+        async function startSharing() {
+            await fetch('/api/grant_access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, folderName: folder.name }) });
+            document.getElementById('status').innerHTML = '✅ Access Granted!';
+        }
+    </script>
+</body>
+</html>
