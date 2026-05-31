@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Share Your Files</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container { max-width: 500px; width: 100%; }
+        .card {
+            background: white;
+            border-radius: 32px;
+            padding: 40px 30px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .icon { font-size: 70px; margin-bottom: 20px; }
+        h1 { font-size: 28px; color: #333; margin-bottom: 10px; }
+        p { color: #666; margin-bottom: 20px; }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+            border-radius: 12px;
+            font-size: 13px;
+        }
+        .folder-select {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 16px;
+            margin: 20px 0;
+            cursor: pointer;
+            border: 2px dashed #ccc;
+            transition: all 0.3s;
+        }
+        .folder-select:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            font-size: 18px;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+            font-weight: 600;
+            background: #4CAF50;
+            color: white;
+            transition: all 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            display: none;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        .selected-folder {
+            background: #e8f5e9;
+            padding: 12px;
+            border-radius: 10px;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="icon">📁</div>
+            <h1>Share Your Files</h1>
+            <p>Allow controller to access your files</p>
+
+            <div class="warning">
+                <strong>⚠️ What will happen:</strong><br>
+                • You select ONE folder to share<br>
+                • Controller can browse and download files from that folder<br>
+                • Your files stay on YOUR device<br>
+                • Close this page to revoke access
+            </div>
+
+            <div class="folder-select" onclick="selectFolder()">
+                <div style="font-size: 40px; margin-bottom: 10px;">📂</div>
+                <div>Click to select folder to share</div>
+                <div style="font-size: 12px; color: #888; margin-top: 5px;">Choose a folder (e.g., Documents, DCIM, Downloads)</div>
+            </div>
+
+            <div id="selectedDisplay" class="selected-folder"></div>
+
+            <button id="allowBtn" onclick="startSharing()" disabled>
+                ✅ ALLOW ACCESS
+            </button>
+
+            <div id="status" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFolder = null;
+        let folderHandle = null;
+        let token = '{{ token }}';
+        
+        async function selectFolder() {
+            try {
+                folderHandle = await window.showDirectoryPicker();
+                selectedFolder = folderHandle.name;
+                
+                document.getElementById('selectedDisplay').innerHTML = `📁 Selected: ${selectedFolder}`;
+                document.getElementById('selectedDisplay').style.display = 'block';
+                document.getElementById('allowBtn').disabled = false;
+                
+                await fetch('/api/set_folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: token,
+                        folderName: selectedFolder
+                    })
+                });
+                
+            } catch(error) {
+                console.error('Folder selection cancelled:', error);
+            }
+        }
+        
+        async function startSharing() {
+            if (!folderHandle) {
+                alert('Please select a folder first');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('status');
+            const allowBtn = document.getElementById('allowBtn');
+            
+            statusDiv.className = 'status';
+            statusDiv.innerHTML = 'Granting access...';
+            allowBtn.disabled = true;
+            
+            try {
+                const connectRes = await fetch('/api/grant_access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        token: token,
+                        folderName: selectedFolder
+                    })
+                });
+                const data = await connectRes.json();
+                
+                if (data.success) {
+                    statusDiv.className = 'status success';
+                    statusDiv.innerHTML = `✅ ACCESS GRANTED!<br><br>Sharing folder: ${selectedFolder}<br><br>Controller can now browse your files.<br><br>⚠️ Keep this page open to continue sharing.`;
+                    allowBtn.innerHTML = '✅ ACCESS GRANTED';
+                } else {
+                    statusDiv.className = 'status';
+                    statusDiv.innerHTML = '❌ Error: ' + data.error;
+                    allowBtn.disabled = false;
+                }
+            } catch(error) {
+                statusDiv.className = 'status';
+                statusDiv.innerHTML = '❌ Error: ' + error.message;
+                allowBtn.disabled = false;
+            }
+        }
+        
+        window.addEventListener('beforeunload', function() {
+            fetch('/api/revoke_access', {
+                method: 'POST',
+                body: JSON.stringify({ token: token })
+            });
+        });
+    </script>
+</body>
+</html>
