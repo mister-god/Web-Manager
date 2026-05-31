@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern - Share Files</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container { max-width: 500px; width: 100%; }
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 30px;
+            padding: 40px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        h1 { font-size: 28px; color: #1e3c72; margin-bottom: 20px; }
+        .folder-select {
+            background: #f0f4f8;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .folder-select:hover { transform: scale(1.02); background: #e8eef4; }
+        button {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 25px;
+            width: 100%;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:disabled { opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>✨ Share Your Files</h1>
+            <div class="folder-select" onclick="selectFolder()">
+                📂 Tap to select folder
+            </div>
+            <div id="selected"></div>
+            <button id="allowBtn" onclick="startSharing()" disabled>Allow Access</button>
+            <div id="status"></div>
+        </div>
+    </div>
+    <script>
+        let folder = null;
+        let token = '{{ token }}';
+        async function selectFolder() {
+            folder = await window.showDirectoryPicker();
+            document.getElementById('selected').innerHTML = `✅ Selected: ${folder.name}`;
+            document.getElementById('allowBtn').disabled = false;
+        }
+        async function startSharing() {
+            await fetch('/api/grant_access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token, folderName: folder.name }) });
+            document.getElementById('status').innerHTML = '✅ Access Granted!';
+        }
+    </script>
+</body>
+</html>
